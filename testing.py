@@ -60,7 +60,7 @@ if __name__ == "__main__":
     #Input arguments: network file name and data file name
     PATH = "output/epoch_25_trained.pth"
   
-    test_input_tensor = torch.load('test_images_tensor.pt')
-    test_output_tensor = torch.load('test_labels_tensor.pt')
+    test_input_tensor = torch.load('tensor_data/test_images_tensor.pt')
+    test_output_tensor = torch.load('tensor_data/test_labels_tensor.pt')
 
     Net.test(test_input_tensor, test_output_tensor, PATH)
