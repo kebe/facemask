@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.conv1 = nn.Conv2d(3, 6, 5) 
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
         self.fc1 = nn.Linear(16 * 53 * 53, 1200)  #sqrt(179776/4/16)
@@ -40,15 +40,16 @@ class Net(nn.Module):
         net.load_state_dict(torch.load(PATH))
 
         out = net(input_tensor)
-        #import pdb; pdb.set_trace()
         accuracy = output_tensor.eq(out.detach().argmax(dim=1)).float().mean()
         print('accuracy:', accuracy.item())
-        #import pdb; pdb.set_trace()
+
         print(output_tensor)
         print(out.detach().argmax(dim=1))
 
-        import pdb; pdb.set_trace()
-        image = input_tensor[8];npimg = image.numpy();plt.imshow(np.transpose(npimg, (1, 2, 0)));plt.show()
+        #import pdb; pdb.set_trace()
+        #image = input_tensor[25];npimg = image.numpy();plt.imshow(np.transpose(npimg, (1, 2, 0)));plt.show()
+        #image = input_tensor[21];npimg = image.numpy();plt.imshow(np.transpose(npimg, (1, 2, 0)));plt.show()
+        #image = input_tensor[8];npimg = image.numpy();plt.imshow(np.transpose(npimg, (1, 2, 0)));plt.show()
 
 
 
@@ -57,7 +58,7 @@ if __name__ == "__main__":
 
     # # CIFAR BATCHES
     #Input arguments: network file name and data file name
-    PATH = "size_21/epoch_23_size21_trained.pth"
+    PATH = "output/epoch_25_trained.pth"
   
     test_input_tensor = torch.load('test_images_tensor.pt')
     test_output_tensor = torch.load('test_labels_tensor.pt')

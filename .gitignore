@@ -3,3 +3,6 @@ images/
 .DS_Store
 *.pt
 *.pth
+workspace.code-workspace
+size*/
+output*/

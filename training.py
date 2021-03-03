@@ -29,9 +29,9 @@ class Net(nn.Module):
         self.conv1 = nn.Conv2d(3, 6, 5) #in_channels: int, out_channels: int, kernel_size
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 53 * 53, 120)  #sqrt(179776/4/16)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 3)
+        self.fc1 = nn.Linear(16 * 53 * 53, 1200)  #sqrt(179776/4/16)
+        self.fc2 = nn.Linear(1200, 300)
+        self.fc3 = nn.Linear(300, 3)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
@@ -45,11 +45,43 @@ class Net(nn.Module):
 
 
   
-    def train(input_tensor, output_tensor, validate_input_tensor, validate_output_tensor):
-        # image = input_tensor[0]
-        # npimg = image.numpy()
-        # plt.imshow(np.transpose(npimg, (1, 2, 0)))
-        # plt.show()
+    def train(dataset):
+       
+        train_size=int(len(dataset)*0.7) # 70% of data for training
+        val_size=int(len(dataset)*0.2)   # 20% of data for validation
+        test_size=len(dataset)-train_size-val_size # 10% of data for testing
+        batch_size=4
+        trainset,valset,testset=torch.utils.data.random_split(dataset,[train_size,val_size,test_size]) #split data into the 3 sets
+
+        # turn tuples into dataloader objects
+        train_loader =DataLoader(dataset=trainset,batch_size=len(trainset),shuffle=True)
+        val_loader =DataLoader(dataset=valset,batch_size=len(valset),shuffle=True)
+        test_loader =DataLoader(dataset=testset,batch_size=len(testset),shuffle=True)
+
+        dataiter=iter(train_loader) 
+        train_images_tensor,train_labels_tensor=dataiter.next()
+
+        val_dataiter=iter(val_loader) 
+        val_images_tensor,val_labels_tensor=val_dataiter.next()
+
+        test_dataiter=iter(test_loader) 
+        test_images_tensor,test_labels_tensor=test_dataiter.next()
+
+        
+        torch.save(train_images_tensor, 'train_images_tensor.pt')
+        torch.save(train_labels_tensor, 'train_labels_tensor.pt')
+        torch.save(val_images_tensor, 'val_images_tensor.pt')
+        torch.save(val_labels_tensor, 'val_labels_tensor.pt')
+        torch.save(test_images_tensor, 'test_images_tensor.pt')
+        torch.save(test_labels_tensor, 'test_labels_tensor.pt')
+
+        # train_images_tensor = torch.load('train_images_tensor.pt')
+        # train_labels_tensor = torch.load('train_labels_tensor.pt')
+        # val_images_tensor = torch.load('val_images_tensor.pt')
+        # val_labels_tensor = torch.load('val_labels_tensor.pt')
+        # test_images_tensor = torch.load('test_images_tensor.pt')
+        # test_labels_tensor = torch.load('test_labels_tensor.pt')
+        #import pdb; pdb.set_trace()
         net = Net()
 
         criterionCE = nn.CrossEntropyLoss()
@@ -62,24 +94,18 @@ class Net(nn.Module):
         train_accuracies = list()
         val_accuracies = list()
         batch_size = 4
-        epoch_stop_train = 203
-        train_size = input_tensor.size()[0]//10
-        dir_path = "size_"+ str(train_size)
+        epoch_stop_train = 200 #default stop point if training goes all the way
+        dir_path = "output"
         os.makedirs(dir_path, exist_ok=True) 
 
         #minibatch calculations
-        num_of_batches = input_tensor.size()[0] // batch_size
-        if input_tensor.size()[0] % batch_size > 0 :
-            last_batch = input_tensor.size()[0] % batch_size 
+        num_of_batches = train_images_tensor.size()[0] // batch_size
+        if train_images_tensor.size()[0] % batch_size > 0 :
+            last_batch = train_images_tensor.size()[0] % batch_size 
         else:
             last_batch = 0
         
         for epoch in range(200):  # loop over the dataset multiple times
-            #reshuffle arrays
-            # shuffled_array = np.arange(input_tensor.size()[0])
-            # np.random.shuffle(shuffled_array)
-            # input_tensor = input_tensor[shuffled_array]
-            # output_tensor = output_tensor[shuffled_array]
 
             print(epoch)
             i =0
@@ -96,8 +122,8 @@ class Net(nn.Module):
                     else:
                         break
 
-                input_tensor_batch = input_tensor[start:end]
-                output_tensor_batch = output_tensor[start:end]
+                input_tensor_batch = train_images_tensor[start:end]
+                output_tensor_batch = train_labels_tensor[start:end]
                 
                 i +=1
                 #import pdb; pdb.set_trace()
@@ -110,7 +136,7 @@ class Net(nn.Module):
                 
                 #append losses
                 if i == 1:
-                    train_losses.append(loss_train)
+                    train_losses.append(loss_train.detach().numpy().mean())
 
                 loss_train.backward()
                 optimizer.step()
@@ -120,48 +146,34 @@ class Net(nn.Module):
 
             train_accuracies.append(sum(sub_train_accuracies) / len(sub_train_accuracies) )
             #validate data    
-            out_validation = net(validate_input_tensor)
-            loss_validation = criterionCE(out_validation, validate_output_tensor)
-            val_losses.append(loss_validation)
-            val_accuracies.append(validate_output_tensor.eq(out_validation.detach().argmax(dim=1)).float().mean())
+            out_validation = net(val_images_tensor)
+            loss_validation = criterionCE(out_validation, val_labels_tensor)
+            val_losses.append(loss_validation.detach().numpy().mean())
+            val_accuracies.append(val_labels_tensor.eq(out_validation.detach().argmax(dim=1)).float().mean())
 
             #save networks 
-            PATH = "./" + dir_path +"/epoch_" + str(epoch) +"_size"+ str(train_size) +"_trained.pth"
+            PATH = "./" + dir_path +"/epoch_" + str(epoch) +"_trained.pth"
             torch.save(net.state_dict(), PATH)
-            #if validation error goes up for 5 epochs in a row 
-            val_size = len(val_losses)
-            #import pdb; pdb.set_trace()
-            if epoch >10 and val_losses[val_size-1] > val_losses[val_size-2] > val_losses[val_size-3] > val_losses[val_size-4]:
-                epoch_stop_train = epoch
-                os.remove("./" + dir_path +"/epoch_" + str(epoch) +"_size"+ str(train_size) +"_trained.pth")
-                os.remove("./" + dir_path +"/epoch_" + str(epoch-1) +"_size"+ str(train_size) +"_trained.pth")
-                os.remove("./" + dir_path +"/epoch_" + str(epoch-2) +"_size"+ str(train_size) +"_trained.pth")
-                os.remove("./" + dir_path +"/epoch_" + str(epoch-3) +"_size"+ str(train_size) +"_trained.pth")
-                break
 
-            #import pdb; pdb.set_trace()
             # printing the validation loss
             print('Epoch : ',epoch+1, '\t', 'val loss :', loss_validation)
             print('Epoch : ',epoch+1, '\t', 'train loss :', loss_train)
             print('Epoch : ',epoch+1, '\t', 'val accuracy :', torch.tensor(val_accuracies).mean())
             print('Epoch : ',epoch+1, '\t', 'train accuracy :', torch.tensor(train_accuracies).mean())
 
-        
+            #if validation error goes up for 4 epochs in a row 
+            val_size = len(val_losses)
+            # if epoch >10 and val_losses[val_size-1] > val_losses[val_size-2] > val_losses[val_size-3] > val_losses[val_size-4] > val_losses[val_size-5]:
+            #     epoch_stop_train = epoch-4
+            #     break
+
         plt.plot(train_losses, label='Training loss')
         plt.plot(val_losses, label='Validation loss')
-        # plt.plot(train_accuracies, label='Training accuracies')
-        # plt.plot(val_accuracies, label='Validation accuracies')
+        plt.plot(train_accuracies, label='Training accuracies')
+        plt.plot(val_accuracies, label='Validation accuracies')
         plt.legend()
-        plt.savefig("./" + dir_path +"/size_"+ str(train_size) +"_plot.png")
-        print('Finished Training')
-
-        #save trained network to filesystem
-        #remove all other files 
-        for iteration in range(epoch_stop_train-4):
-            if os.path.exists("./" + dir_path +"/epoch_" + str(iteration) +"_size"+ str(train_size) +"_trained.pth"):
-                os.remove("./" + dir_path +"/epoch_" + str(iteration) +"_size"+ str(train_size) +"_trained.pth")
-            else:
-                print("The file does not exist")
+        plt.savefig("./" + dir_path +"/size_"+ "_plot.png")
+        print('Finished Training at epoch:',epoch_stop_train )
 
 
 
@@ -200,10 +212,14 @@ def draw_bounding_box(input_image):
 def make_dataset(no_of_images): 
     image_tensor=[]
     label_tensor=[]
+    with_mask_count =0
+    without_mask_count =0
+    incorrect_mask_count =0
+    total_size =125
     #count =0
     for i,j in enumerate(no_of_images):
         # count = count +1
-        # if count > 8:
+        # if count > 512:
         #     break
         with open(path_annotations+j[:-4]+".xml") as fd:
             doc=xmltodict.parse(fd.read())
@@ -211,17 +227,47 @@ def make_dataset(no_of_images):
             temp=doc["annotation"]["object"]
             a,b,c,d=list(map(int,temp["bndbox"].values()))
             label=options[temp["name"]]
-            image=transforms.functional.crop(Image.open(path_images+j).convert("RGB"), b,a,d-b,c-a)
-            image_tensor.append(my_transform(image))
-            label_tensor.append(torch.tensor(label))
+            if label == 0 and with_mask_count < total_size :
+                with_mask_count +=1
+                print('with_mask_count:', with_mask_count)
+                image=transforms.functional.crop(Image.open(path_images+j).convert("RGB"), b,a,d-b,c-a)
+                image_tensor.append(my_transform(image))
+                label_tensor.append(torch.tensor(label))                
+            if label == 1 and without_mask_count < total_size :
+                without_mask_count +=1
+                print('without_mask_count:', without_mask_count)
+                image=transforms.functional.crop(Image.open(path_images+j).convert("RGB"), b,a,d-b,c-a)
+                image_tensor.append(my_transform(image))
+                label_tensor.append(torch.tensor(label))
+            if label == 2 and incorrect_mask_count < total_size:
+                incorrect_mask_count +=1
+                print('incorrect_mask_count:', incorrect_mask_count)
+                image=transforms.functional.crop(Image.open(path_images+j).convert("RGB"), b,a,d-b,c-a)
+                image_tensor.append(my_transform(image))
+                label_tensor.append(torch.tensor(label))
         else:
             temp=doc["annotation"]["object"]
             for k in range(len(temp)):
                 a,b,c,d=list(map(int,temp[k]["bndbox"].values()))
                 label=options[temp[k]["name"]]
-                image=transforms.functional.crop(Image.open(path_images+j).convert("RGB"), b,a,d-b,c-a)
-                image_tensor.append(my_transform(image))
-                label_tensor.append(torch.tensor(label))
+                if label == 0 and with_mask_count < total_size :
+                    with_mask_count +=1
+                    print('with_mask_count:', with_mask_count)
+                    image=transforms.functional.crop(Image.open(path_images+j).convert("RGB"), b,a,d-b,c-a)
+                    image_tensor.append(my_transform(image))
+                    label_tensor.append(torch.tensor(label))                
+                if label == 1 and without_mask_count < total_size :
+                    without_mask_count +=1
+                    print('without_mask_count:', without_mask_count)
+                    image=transforms.functional.crop(Image.open(path_images+j).convert("RGB"), b,a,d-b,c-a)
+                    image_tensor.append(my_transform(image))
+                    label_tensor.append(torch.tensor(label))
+                if label == 2 and incorrect_mask_count < total_size:
+                    incorrect_mask_count +=1
+                    print('incorrect_mask_count:', incorrect_mask_count)
+                    image=transforms.functional.crop(Image.open(path_images+j).convert("RGB"), b,a,d-b,c-a)
+                    image_tensor.append(my_transform(image))
+                    label_tensor.append(torch.tensor(label))
                 
     final_dataset=[[k,l] for k,l in zip(image_tensor,label_tensor)]
     return tuple(final_dataset)
@@ -269,44 +315,9 @@ if __name__ == "__main__":
     my_transform=transforms.Compose([transforms.Resize((226,226)),
                                     transforms.ToTensor()])
 
+    #dataset = []
     dataset=make_dataset(imagenames) #making a datset
-    import pdb; pdb.set_trace()
-    # train_size=int(len(dataset)*0.8)
-    # test_size=len(dataset)-train_size
-    # batch_size=800
-    # trainset,testset=torch.utils.data.random_split(dataset,[train_size,test_size])
-    # train_loader =DataLoader(dataset=trainset,batch_size=batch_size,shuffle=True)
-    # test_loader =DataLoader(dataset=testset,batch_size=batch_size,shuffle=True)
 
-    # dataiter=iter(train_loader) 
-    # images,labels=dataiter.next()
-    # images=images.numpy()
 
-    # val_dataiter=iter(test_loader) 
-    # val_images,val_labels=val_dataiter.next()
-    # val_images=val_images.numpy()
-
-    # #import pdb; pdb.set_trace()
-    # #fig=plt.figure(figsize=(25,4))
-    # # for idx in np.arange(20):
-    # #     ax=fig.add_subplot(2,20/2,idx+1,xticks=[],yticks=[])
-    # #     plt.imshow(np.transpose(images[idx],(1,2,0)))
-    # #     plt.show()
     
-    # images_tensor = torch.from_numpy(images)
-    # labels_tensor = labels
-    # val_images_tensor = torch.from_numpy(val_images)
-    # val_labels_tensor = val_labels
-
-    # torch.save(images_tensor, 'images_tensor.pt')
-    # torch.save(labels_tensor, 'labels_tensor.pt')
-    # torch.save(val_images_tensor, 'val_images_tensor.pt')
-    # torch.save(val_labels_tensor, 'val_labels_tensor.pt')
-
-    images_tensor = torch.load('images_tensor.pt')
-    labels_tensor = torch.load('labels_tensor.pt')
-    val_images_tensor = torch.load('val_images_tensor.pt')
-    val_labels_tensor = torch.load('val_labels_tensor.pt')
-
-    import pdb; pdb.set_trace()
-    Net.train(images_tensor, labels_tensor, val_images_tensor, val_labels_tensor)
+    Net.train(dataset)
